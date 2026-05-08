@@ -4,7 +4,7 @@ from PIL import Image
 
 # Configurar la IA de Google
 genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-model = genai.GenerativeModel('gemini-1.5-flash')
+model = genai.GenerativeModel('models/gemini-1.5-flash')
 
 st.set_page_config(page_title="GameKeeper IA", page_icon="🕹️")
 st.title("🕹️ GameKeeper IA")
