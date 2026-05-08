@@ -1,6 +1,8 @@
 import streamlit as st
 import google.generativeai as genai
 from PIL import Image
+import json
+import os
 
 # --- CONFIGURACIÓN IA ---
 if "GOOGLE_API_KEY" in st.secrets:
@@ -11,69 +13,70 @@ else:
 MODEL_NAME = 'gemini-2.5-flash'
 model = genai.GenerativeModel(MODEL_NAME)
 
+# --- FUNCIONES DE PERSISTENCIA (EL DISCO DURO) ---
+archivo_datos = "mis_juegos.json"
+
+def cargar_datos():
+    if os.path.exists(archivo_datos):
+        with open(archivo_datos, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return []
+
+def guardar_datos(lista_juegos):
+    with open(archivo_datos, "w", encoding="utf-8") as f:
+        json.dump(lista_juegos, f, ensure_ascii=False, indent=4)
+
 # --- CONFIGURACIÓN APP ---
 st.set_page_config(page_title="GameKeeper IA", page_icon="🕹️", layout="wide")
 st.title("🕹️ GameKeeper IA")
-st.caption(f"Cerebro activo: {MODEL_NAME}")
 
-# --- MEMORIA DE LA APP ---
-# Si la lista de juegos no existe, la creamos
+# Inicializamos la sesión con los datos del archivo
 if 'coleccion' not in st.session_state:
-    st.session_state.coleccion = []
+    st.session_state.coleccion = cargar_datos()
 
-# --- MENÚ LATERAL ---
+# --- NAVEGACIÓN ---
 menu = ["Mi Colección", "Añadir por Foto"]
-choice = st.sidebar.selectbox("Navegación", menu)
+choice = st.sidebar.selectbox("Menú", menu)
 
-# --- PESTAÑA: MI COLECCIÓN ---
 if choice == "Mi Colección":
-    st.header("📚 Mi Estantería Digital")
+    st.header("📚 Mi Estantería Permanente")
     
-    if len(st.session_state.coleccion) == 0:
-        st.info("Tu estantería está vacía. ¡Ve a 'Añadir por Foto' para empezar!")
+    if not st.session_state.coleccion:
+        st.info("Tu estantería está vacía.")
     else:
-        st.success(f"Tienes {len(st.session_state.coleccion)} juegos en tu colección.")
-        
-        # Mostramos los juegos en una cuadrícula bonita
-        cols = st.columns(3) # 3 columnas
-        for index, juego in enumerate(st.session_state.coleccion):
-            # Repartimos los juegos entre las columnas
-            with cols[index % 3]: 
-                st.markdown(f"**{juego}**")
-                st.divider()
+        st.success(f"Tienes {len(st.session_state.coleccion)} juegos guardados.")
+        # Botón para limpiar (opcional, por si quieres resetear)
+        if st.sidebar.button("Borrar toda la colección"):
+            st.session_state.coleccion = []
+            guardar_datos([])
+            st.rerun()
 
-# --- PESTAÑA: AÑADIR JUEGO ---
+        cols = st.columns(4)
+        for i, juego in enumerate(st.session_state.coleccion):
+            with cols[i % 4]:
+                st.info(juego)
+
 elif choice == "Añadir por Foto":
-    st.header("📸 Escanear Juego")
-    
-    # Creamos dos columnas: una para la cámara y otra para el resultado
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        foto = st.camera_input("Enfoca la portada o el lomo")
+    st.header("📸 Escanear Nuevo Juego")
+    foto = st.camera_input("Haz la foto")
 
     if foto:
         img = Image.open(foto)
-        
-        with col2:
-            st.write("### Resultado:")
+        with st.spinner("Identificando..."):
             try:
-                with st.spinner("Analizando..."):
-                    prompt = "Identifica este videojuego. Devuelve SOLO: Nombre (Plataforma). Ej: Elden Ring (PS5)"
-                    response = model.generate_content([prompt, img])
+                prompt = "Identifica este videojuego. Devuelve SOLO: Nombre (Plataforma)"
+                response = model.generate_content([prompt, img])
+                resultado = response.text.strip()
+                
+                st.subheader(f"🎮 {resultado}")
+                
+                if st.button("Confirmar y Guardar en Disco"):
+                    # 1. Añadir a la lista de la pantalla
+                    st.session_state.coleccion.append(resultado)
+                    # 2. Guardar en el archivo físico
+                    guardar_datos(st.session_state.coleccion)
                     
-                    if response.text:
-                        resultado = response.text.strip() # Quitamos espacios extra
-                        st.success(f"🎮 {resultado}")
-                        
-                        # Botón para guardar
-                        if st.button("Guardar en mi colección"):
-                            # Añadimos a la memoria
-                            st.session_state.coleccion.append(resultado)
-                            st.balloons()
-                            st.write("✅ ¡Guardado!")
-                            
-                    else:
-                        st.warning("No pude identificar el juego.")
+                    st.balloons()
+                    st.success("¡Guardado permanentemente!")
             except Exception as e:
-                st.error(f"Error al analizar: {e}")
+                st.error(f"Error: {e}")
