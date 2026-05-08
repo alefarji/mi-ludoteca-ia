@@ -2,35 +2,34 @@ import streamlit as st
 import google.generativeai as genai
 from PIL import Image
 
-# Configuración segura
+# Configuración
 if "GOOGLE_API_KEY" in st.secrets:
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 else:
-    st.error("Falta la API Key en Secrets")
+    st.error("Falta la clave API")
 
-# Nombre del modelo más estable
-model = genai.GenerativeModel('gemini-1.5-flash')
+st.title("🕹️ GameKeeper: Debug Mode")
 
-st.title("🕹️ GameKeeper IA")
+# --- BLOQUE DE DIAGNÓSTICO ---
+st.write("### 🔍 Modelos disponibles para tu llave:")
+try:
+    for m in genai.list_models():
+        if 'generateContent' in m.supported_generation_methods:
+            st.code(m.name)
+except Exception as e:
+    st.error(f"Error al listar modelos: {e}")
+# -----------------------------
 
-foto = st.camera_input("Saca una foto al juego")
+st.divider()
+
+foto = st.camera_input("Prueba a sacar la foto ahora")
 
 if foto:
     img = Image.open(foto)
+    # Intentamos usar el nombre más básico posible
+    model = genai.GenerativeModel('gemini-1.5-flash')
     try:
-        with st.spinner("Identificando videojuego..."):
-            # Usamos una lista para pasar el prompt y la imagen
-            response = model.generate_content([
-                "Identifica este videojuego. Devuelve solo: Nombre (Consola)", 
-                img
-            ])
-            
-            if response.text:
-                st.success(f"🎮 Encontrado: {response.text}")
-                if st.button("Guardar Juego"):
-                    st.balloons()
-            else:
-                st.warning("No se pudo obtener texto de la imagen.")
-                
+        response = model.generate_content(["Identifica el juego: Nombre (Consola)", img])
+        st.success(response.text)
     except Exception as e:
-        st.error(f"Error técnico: {e}")
+        st.error(f"Fallo en la predicción: {e}")
